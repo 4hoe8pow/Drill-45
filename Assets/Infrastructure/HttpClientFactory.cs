@@ -18,6 +18,10 @@ public static class HttpClientFactory
             };
             _client.DefaultRequestHeaders.Accept
                    .Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            if (!_client.DefaultRequestHeaders.Contains("apikey"))
+            {
+                _client.DefaultRequestHeaders.Add("apikey", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrbGplamZraXJia255aHphbGJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MjY1MzksImV4cCI6MjA2MjIwMjUzOX0.p4-ltGDchU-jWtUPX9wd2fQYBa9YQ1NFJDGd082hii4");
+            }
         }
         return _client;
     }

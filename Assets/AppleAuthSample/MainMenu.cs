@@ -187,7 +187,7 @@ public class MainMenu : MonoBehaviour
     {
         Debug.Log("SignInWithSupabase() called");
         var authClient = new SupabaseAuthClient();
-        var task = authClient.SignInWithIdTokenAsync(idToken);
+        var task = authClient.SignInWithIdTokenAsync(idToken, rawNonce);
         yield return new WaitUntil(() => task.IsCompleted);
 
         if (task.Exception == null && task.Result != null)
