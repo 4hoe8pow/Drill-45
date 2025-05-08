@@ -1,0 +1,66 @@
+# OS固有ファイル
+.DS_Store
+Thumbs.db
+
+# Unity ビルドと一時ファイル
+[Ll]ibrary/
+[Tt]emp/
+[Bb]uild/
+[Bb]uilds/
+[Pp]rojectSettings/UnityConnectSettings.asset
+[Pp]rojectSettings/EditorBuildSettings.asset
+[Pp]rojectSettings/EditorSettings.asset
+[Pp]rojectSettings/QualitySettings.asset
+[Pp]rojectSettings/AnalyticsSettings.asset
+
+# Auto-generated VS/JetBrains project files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+.vscode/
+.idea/
+
+# Rider
+*.sln.iml
+
+# Unity Cloud Build
+/Assets/StreamingAssets/UnityCloudBuild.manifest
+
+# その他自動生成ファイル
+*.apk
+*.aab
+*.app
+*.ipa
+*.xcworkspace
+*.xcuserdata/
+*.xcodeproj/project.xcworkspace/
+
+# iOS
+build/ios/
+build/iOS/
+
+# Android
+build/android/
+build/Android/
+
+# Addressables キャッシュ
+/ServerData/
+/AssetBundles/
+/Assets/AddressableAssetsData/*.bin*
+
+# Logs
+*.log
+
+# Crashlytics
+crashlytics-build.properties
+
+# Supabase 関連（秘密鍵などは別途管理）
+**/secrets/
+**/*.p8
