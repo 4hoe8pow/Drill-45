@@ -2,7 +2,6 @@
 #define UNITY_XCODE_EXTENSIONS_AVAILABLE
 #endif
 
-using AppleAuth.Editor;
 using UnityEditor;
 using UnityEditor.Callbacks;
 #if UNITY_XCODE_EXTENSIONS_AVAILABLE
@@ -34,10 +33,6 @@ namespace AppleAuthSample.Editor
                         manager.WriteToFile();
                     #endif
                 #endif
-            }
-            else if (target == BuildTarget.StandaloneOSX)
-            {
-                AppleAuthMacosPostprocessorHelper.FixManagerBundleIdentifier(target, path);
             }
         }
     }

@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-public class SupabaseDAO
+public class UserParameterDao
 {
     private readonly HttpClient _http = HttpClientFactory.GetClient();
 
