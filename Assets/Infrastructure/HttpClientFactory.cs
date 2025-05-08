@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 using System.Net.Http;
 using System.Net.Http.Headers;
 
@@ -8,6 +9,7 @@ public static class HttpClientFactory
 
     public static HttpClient GetClient()
     {
+        Debug.Log("GetClient() called");
         if (_client == null)
         {
             _client = new HttpClient
@@ -23,8 +25,17 @@ public static class HttpClientFactory
     // Bearer トークンを設定するヘルパー
     public static void SetBearerToken(string accessToken)
     {
+        Debug.Log("SetBearerToken() called");
         var client = GetClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
+    }
+
+    // Bearer トークンをクリアするヘルパー
+    public static void ClearBearerToken()
+    {
+        Debug.Log("ClearBearerToken() called");
+        var client = GetClient();
+        client.DefaultRequestHeaders.Authorization = null;
     }
 }

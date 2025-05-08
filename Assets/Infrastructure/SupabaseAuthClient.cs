@@ -1,7 +1,9 @@
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using UnityEngine;
 
 public class SupabaseAuthClient
 {
@@ -21,35 +23,53 @@ public class SupabaseAuthClient
     // Apple ID トークンでサインイン
     public async Task<Session> SignInWithIdTokenAsync(string provider, string idToken, string nonce)
     {
-        var payload = new
+        Debug.Log("SignInWithIdTokenAsync() called");
+        try
         {
-            provider = provider,
-            token    = idToken,
-            nonce    = nonce
-        };
-        var content = new StringContent(
-            JsonConvert.SerializeObject(payload),
-            Encoding.UTF8,
-            "application/json"
-        );
-        var response = await _http.PostAsync($"{TokenEndpoint}?grant_type=id_token", content);
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonConvert.DeserializeObject<Session>(json);
+            var payload = new
+            {
+                provider = provider,
+                token = idToken,
+                nonce = nonce
+            };
+            var content = new StringContent(
+                JsonConvert.SerializeObject(payload),
+                Encoding.UTF8,
+                "application/json"
+            );
+            var response = await _http.PostAsync($"{TokenEndpoint}?grant_type=id_token", content);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<Session>(json);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"SignInWithIdTokenAsync() failed: {ex.Message}");
+            throw;
+        }
     }
 
     // リフレッシュトークンで更新
     public async Task<Session> RefreshSessionAsync(string refreshToken)
     {
-        var payload = new { refresh_token = refreshToken };
-        var content = new StringContent(
-            JsonConvert.SerializeObject(payload),
-            Encoding.UTF8,
-            "application/json"
-        );
-        var response = await _http.PostAsync($"{TokenEndpoint}?grant_type=refresh_token", content);
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonConvert.DeserializeObject<Session>(json);
+        Debug.Log("RefreshSessionAsync() called");
+        try
+        {
+            var payload = new { refresh_token = refreshToken };
+            var content = new StringContent(
+                JsonConvert.SerializeObject(payload),
+                Encoding.UTF8,
+                "application/json"
+            );
+            var response = await _http.PostAsync($"{TokenEndpoint}?grant_type=refresh_token", content);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<Session>(json);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"RefreshSessionAsync() failed: {ex.Message}");
+            throw;
+        }
     }
 }

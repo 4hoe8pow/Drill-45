@@ -1,143 +1,206 @@
-﻿using AppleAuth;
+﻿using System;
+using System.Text;
+using System.Collections;
+using UnityEngine;
+using AppleAuth;
 using AppleAuth.Enums;
 using AppleAuth.Interfaces;
 using AppleAuth.Native;
-using System.Text;
-using System.Threading.Tasks;
-using UnityEngine;
 
 public class MainMenu : MonoBehaviour
 {
     private const string AppleUserIdKey = "AppleUserId";
+
     private IAppleAuthManager _appleAuthManager;
-    private string _rawNonce;
 
     public LoginMenuHandler LoginMenu;
-    public GameMenuHandler   GameMenu;
+    public GameMenuHandler GameMenu;
 
-    private async void Start()
+    private void Start()
     {
-        // Supabase セッションの自動復元を試みる
-        var (at, rt) = SessionManager.LoadSession();
-        if (!string.IsNullOrEmpty(at) && !string.IsNullOrEmpty(rt))
-        {
-            Debug.Log("Supabase セッション復元");
-            SetupGameMenu(PlayerPrefs.GetString(AppleUserIdKey), null);
-            return;
-        }
-
-        // AppleAuthManager の初期化…
+        Debug.Log("Start() called");
+        // 1) AppleAuthManager 初期化
         if (AppleAuthManager.IsCurrentPlatformSupported)
         {
-            _appleAuthManager = new AppleAuthManager(new PayloadDeserializer());
-            _appleAuthManager.SetCredentialsRevokedCallback(_ =>
-            {
-                PlayerPrefs.DeleteKey(AppleUserIdKey);
-                SessionManager.SaveSession("", "");
-                InitializeLoginMenu();
-            });
+            var deserializer = new PayloadDeserializer();
+            _appleAuthManager = new AppleAuthManager(deserializer);
         }
 
+        // 2) セッション復元 or Apple Quick Login
         InitializeLoginMenu();
+    }
+
+    private void Update()
+    {
+        _appleAuthManager?.Update();
+        LoginMenu.UpdateLoadingMessage(Time.deltaTime);
+    }
+
+    public void SignInWithAppleButtonPressed()
+    {
+        Debug.Log("SignInWithAppleButtonPressed() called");
+        SetupLoginMenuForAppleSignIn();
+        SignInWithApple();
     }
 
     private void InitializeLoginMenu()
     {
+        Debug.Log("InitializeLoginMenu() called");
         LoginMenu.SetVisible(true);
         GameMenu.SetVisible(false);
 
         if (_appleAuthManager == null)
         {
-            LoginMenu.SetLoadingMessage(true, "Unsupported platform");
+            SetupLoginMenuForUnsupportedPlatform();
             return;
         }
 
+        // Apple資格情報がリボークされた通知
+        _appleAuthManager.SetCredentialsRevokedCallback(_ =>
+        {
+            PlayerPrefs.DeleteKey(AppleUserIdKey);
+            SessionManager.ClearSession();
+            SetupLoginMenuForSignInWithApple();
+        });
+
+        // 1) まず Supabase セッション復元を試みる
+        var (at, rt) = SessionManager.LoadSession();
+        if (!string.IsNullOrEmpty(at))
+        {
+            // (a) accessToken の有効性チェックが必要ならここで
+            HttpClientFactory.SetBearerToken(at);
+            SetupGameMenu(PlayerPrefs.GetString(AppleUserIdKey), null);
+            return;
+        }
+
+        // 2) 既存の AppleUserId があれば Quick Login
         if (PlayerPrefs.HasKey(AppleUserIdKey))
         {
+            SetupLoginMenuForQuickLoginAttempt();
             AttemptQuickLogin();
         }
         else
         {
-            LoginMenu.SetSignInWithAppleButton(true, true);
+            SetupLoginMenuForSignInWithApple();
         }
     }
 
-    public void SignInWithAppleButtonPressed()
+    private void SetupLoginMenuForUnsupportedPlatform()
     {
+        Debug.Log("SetupLoginMenuForUnsupportedPlatform() called");
+        LoginMenu.SetVisible(true);
+        GameMenu.SetVisible(false);
+        LoginMenu.SetSignInWithAppleButton(false, false);
+        LoginMenu.SetLoadingMessage(true, "Unsupported platform");
+    }
+
+    private void SetupLoginMenuForSignInWithApple()
+    {
+        Debug.Log("SetupLoginMenuForSignInWithApple() called");
+        LoginMenu.SetVisible(true);
+        GameMenu.SetVisible(false);
+        LoginMenu.SetSignInWithAppleButton(true, true);
+        LoginMenu.SetLoadingMessage(false, string.Empty);
+    }
+
+    private void SetupLoginMenuForQuickLoginAttempt()
+    {
+        Debug.Log("SetupLoginMenuForQuickLoginAttempt() called");
+        LoginMenu.SetVisible(true);
+        GameMenu.SetVisible(false);
+        LoginMenu.SetSignInWithAppleButton(true, false);
+        LoginMenu.SetLoadingMessage(true, "Attempting Quick Login");
+    }
+
+    private void SetupLoginMenuForAppleSignIn()
+    {
+        Debug.Log("SetupLoginMenuForAppleSignIn() called");
+        LoginMenu.SetVisible(true);
+        GameMenu.SetVisible(false);
+        LoginMenu.SetSignInWithAppleButton(true, false);
         LoginMenu.SetLoadingMessage(true, "Signing In with Apple");
-        SignInWithApple();
+    }
+
+    private void SetupGameMenu(string appleUserId, ICredential credential)
+    {
+        Debug.Log("SetupGameMenu() called");
+        LoginMenu.SetVisible(false);
+        GameMenu.SetVisible(true);
+        GameMenu.SetupAppleData(appleUserId, credential);
     }
 
     private void AttemptQuickLogin()
     {
-        LoginMenu.SetLoadingMessage(true, "Attempting Quick Login");
-        _appleAuthManager.QuickLogin(new AppleAuthQuickLoginArgs(),
+        Debug.Log("AttemptQuickLogin() called");
+        var args = new AppleAuthQuickLoginArgs();
+        _appleAuthManager.QuickLogin(args,
             credential =>
             {
-                OnAppleCredential(credential as IAppleIDCredential);
+                var appleCred = credential as IAppleIDCredential;
+                if (appleCred != null)
+                {
+                    PlayerPrefs.SetString(AppleUserIdKey, appleCred.User);
+                    // Supabase 認証も行う
+                    var rawNonce = ""; // QuickLogin には nonce 不要
+                    StartCoroutine(SignInWithSupabase(Encoding.UTF8.GetString(appleCred.IdentityToken), rawNonce));
+                }
             },
             error =>
             {
-                Debug.LogWarning("Quick Login failed");
-                LoginMenu.SetSignInWithAppleButton(true, true);
+                Debug.LogError($"AttemptQuickLogin() failed: {error.LocalizedDescription}");
+                SetupLoginMenuForSignInWithApple();
             });
     }
 
     private void SignInWithApple()
     {
-        // rawNonce を生成
-        _rawNonce = Supabase.Gotrue.Helpers.GenerateNonce();
-        var sha256Nonce = Supabase.Gotrue.Helpers.GenerateSHA256NonceFromRawNonce(_rawNonce);
+        Debug.Log("SignInWithApple() called");
+        // 1) Nonce を生成
+        var rawNonce = Supabase.Gotrue.Helpers.GenerateNonce();
+        var hashedNonce = Supabase.Gotrue.Helpers.GenerateSHA256NonceFromRawNonce(rawNonce);
 
-        var loginArgs = new AppleAuthLoginArgs(
+        var args = new AppleAuthLoginArgs(
             LoginOptions.IncludeEmail | LoginOptions.IncludeFullName,
-            sha256Nonce
+            hashedNonce
         );
 
-        _appleAuthManager.LoginWithAppleId(
-            loginArgs,
+        _appleAuthManager.LoginWithAppleId(args,
             credential =>
             {
-                OnAppleCredential(credential as IAppleIDCredential);
+                var appleCred = credential as IAppleIDCredential;
+                if (appleCred != null)
+                {
+                    PlayerPrefs.SetString(AppleUserIdKey, appleCred.User);
+                    var idToken = Encoding.UTF8.GetString(appleCred.IdentityToken);
+                    // 2) Supabase サインイン
+                    StartCoroutine(SignInWithSupabase(idToken, rawNonce));
+                }
             },
             error =>
             {
-                Debug.LogWarning("Sign in with Apple failed");
-                LoginMenu.SetSignInWithAppleButton(true, true);
+                Debug.LogError($"SignInWithApple() failed: {error.LocalizedDescription}");
+                SetupLoginMenuForSignInWithApple();
             });
     }
 
-    private void OnAppleCredential(IAppleIDCredential appleCred)
+    private IEnumerator SignInWithSupabase(string idToken, string rawNonce)
     {
-        // Apple User ID 保存
-        PlayerPrefs.SetString(AppleUserIdKey, appleCred.User);
-
-        // Supabase サインイン
-        _ = SignInWithSupabaseAsync(appleCred).ContinueWith(_ =>
-        {
-            SetupGameMenu(appleCred.User, appleCred);
-        });
-    }
-
-    private async Task SignInWithSupabaseAsync(IAppleIDCredential appleCred)
-    {
-        var idToken = Encoding.UTF8.GetString(appleCred.IdentityToken);
+        Debug.Log("SignInWithSupabase() called");
         var authClient = new SupabaseAuthClient();
-        var session = await authClient.SignInWithIdTokenAsync(
-            provider: "apple",
-            idToken: idToken,
-            nonce: _rawNonce
-        );
+        var task = authClient.SignInWithIdTokenAsync("apple", idToken, rawNonce);
+        yield return new WaitUntil(() => task.IsCompleted);
 
-        // セッション永続化
-        SessionManager.SaveSession(session.AccessToken, session.RefreshToken);
-        Debug.Log("Supabase ログイン成功");
-    }
-
-    private void SetupGameMenu(string appleUserId, ICredential credential)
-    {
-        LoginMenu.SetVisible(false);
-        GameMenu.SetVisible(true);
-        GameMenu.SetupAppleData(appleUserId, credential);
+        if (task.Exception == null && task.Result != null)
+        {
+            var session = task.Result;
+            // 3) トークンを保存
+            SessionManager.SaveSession(session.AccessToken, session.RefreshToken);
+            SetupGameMenu(PlayerPrefs.GetString(AppleUserIdKey), null);
+        }
+        else
+        {
+            Debug.LogError($"SignInWithSupabase() failed: {task.Exception?.Message}");
+            SetupLoginMenuForSignInWithApple();
+        }
     }
 }
